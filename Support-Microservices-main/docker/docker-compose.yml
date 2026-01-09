@@ -1,0 +1,150 @@
+version: '3.8'
+
+services:
+  # --- DATABASES ---
+  auth-db:
+    image: postgres:16
+    container_name: auth-db
+    environment:
+      POSTGRES_DB: ${AUTH_DB_NAME}
+      POSTGRES_USER: ${AUTH_DB_USER}
+      POSTGRES_PASSWORD: ${AUTH_DB_PASSWORD}
+    ports:
+      - "${AUTH_DB_PORT}:5432"
+    volumes:
+      - auth-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${AUTH_DB_USER} -d ${AUTH_DB_NAME}" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  users-db:
+    image: postgres:16
+    container_name: users-db
+    environment:
+      POSTGRES_DB: ${USERS_DB_NAME}
+      POSTGRES_USER: ${USERS_DB_USER}
+      POSTGRES_PASSWORD: ${USERS_DB_PASSWORD}
+    ports:
+      - "${USERS_DB_PORT}:5432"
+    volumes:
+      - users-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${USERS_DB_USER} -d ${USERS_DB_NAME}" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  tickets-db:
+    image: postgres:16
+    container_name: tickets-db
+    environment:
+      POSTGRES_DB: ${TICKETS_DB_NAME}
+      POSTGRES_USER: ${TICKETS_DB_USER}
+      POSTGRES_PASSWORD: ${TICKETS_DB_PASSWORD}
+    ports:
+      - "${TICKETS_DB_PORT}:5432"
+    volumes:
+      - tickets-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${TICKETS_DB_USER} -d ${TICKETS_DB_NAME}" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # --- MICROSERVICES ---
+
+  auth-service:
+    build:
+      context: ..
+      dockerfile: apps/auth-service/Dockerfile
+      target: development
+      args:
+        SERVICE_NAME: auth-service
+    env_file:
+      - .env
+    environment:
+      AUTH_DATABASE_URL: postgresql://${AUTH_DB_USER}:${AUTH_DB_PASSWORD}@auth-db:5432/${AUTH_DB_NAME}
+      PORT: ${AUTH_SV_PORT}
+      # Налаштування для Hot Reload на Windows/macOS:
+      CHOKIDAR_USEPOLLING: "true"
+      CHOKIDAR_INTERVAL: 1000
+      WATCHPACK_POLLING: "true"
+    depends_on:
+      auth-db:
+        condition: service_healthy
+    ports:
+      - "${AUTH_SV_PORT}:${AUTH_SV_PORT}"
+    volumes:
+      - ../:/app
+      - /app/node_modules
+      - /app/dist
+    # Додано --poll 1000 для примусового відстеження змін
+    command: >
+      sh -c "npx prisma generate --schema=apps/auth-service/prisma/schema.prisma && 
+             npx prisma db push --schema=apps/auth-service/prisma/schema.prisma && 
+             npm run start:dev auth-service -- --watch --poll 1000"
+
+  tickets-service:
+    build:
+      context: ..
+      dockerfile: apps/tickets-service/Dockerfile
+      target: development
+      args:
+        SERVICE_NAME: tickets-service
+    env_file:
+      - .env
+    environment:
+      TICKETS_DATABASE_URL: postgresql://${TICKETS_DB_USER}:${TICKETS_DB_PASSWORD}@tickets-db:5432/${TICKETS_DB_NAME}
+      PORT: ${TICKETS_SV_PORT}
+      CHOKIDAR_USEPOLLING: "true"
+      CHOKIDAR_INTERVAL: 1000
+      WATCHPACK_POLLING: "true"
+    depends_on:
+      tickets-db:
+        condition: service_healthy
+    ports:
+      - "${TICKETS_SV_PORT}:${TICKETS_SV_PORT}"
+    volumes:
+      - ../:/app
+      - /app/node_modules
+      - /app/dist
+    command: >
+      sh -c "npx prisma generate --schema=apps/tickets-service/prisma/schema.prisma && 
+             npx prisma db push --schema=apps/tickets-service/prisma/schema.prisma && 
+             npm run start:dev tickets-service -- --watch --poll 1000"
+
+  users-service:
+    build:
+      context: ..
+      dockerfile: apps/users-service/Dockerfile
+      target: development
+      args:
+        SERVICE_NAME: users-service
+    env_file:
+      - .env
+    environment:
+      USERS_DATABASE_URL: postgresql://${USERS_DB_USER}:${USERS_DB_PASSWORD}@users-db:5432/${USERS_DB_NAME}
+      PORT: ${USERS_SV_PORT}
+      CHOKIDAR_USEPOLLING: "true"
+      CHOKIDAR_INTERVAL: 1000
+      WATCHPACK_POLLING: "true"
+    depends_on:
+      users-db:
+        condition: service_healthy
+    ports:
+      - "${USERS_SV_PORT}:${USERS_SV_PORT}"
+    volumes:
+      - ../:/app
+      - /app/node_modules
+      - /app/dist
+    command: >
+      sh -c "npx prisma generate --schema=apps/users-service/prisma/schema.prisma && 
+             npx prisma db push --schema=apps/users-service/prisma/schema.prisma && 
+             npm run start:dev users-service -- --watch --poll 1000"
+
+volumes:
+  auth-db-data:
+  users-db-data:
+  tickets-db-data:

@@ -1,0 +1,112 @@
+name: Docker Compose CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  # lint:
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+
+  #     - name: Install dependencies
+  #       run: npm ci
+
+  #     - name: Generate Prisma Clients
+  #       run: |
+  #         npx prisma generate --schema=apps/auth-service/prisma/schema.prisma
+  #         npx prisma generate --schema=apps/users-service/prisma/schema.prisma
+  #         npx prisma generate --schema=apps/tickets-service/prisma/schema.prisma
+
+  #     - name: Run ESLint
+  #       run: npm run lint
+
+  tests:
+    # needs: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare Environments
+        run: |
+          cat <<EOF > docker/.env
+          AUTH_SV_PORT=${{ secrets.AUTH_SV_PORT }}
+          USERS_SV_PORT=${{ secrets.USERS_SV_PORT }}
+          TICKETS_SV_PORT=${{ secrets.TICKETS_SV_PORT }}
+          AUTH_DB_NAME=${{ secrets.AUTH_DB_NAME }}
+          AUTH_DB_USER=${{ secrets.AUTH_DB_USER }}
+          AUTH_DB_PASSWORD=${{ secrets.AUTH_DB_PASSWORD }}
+          AUTH_DB_PORT=${{ secrets.AUTH_DB_PORT }}
+          USERS_DB_NAME=${{ secrets.USERS_DB_NAME }}
+          USERS_DB_USER=${{ secrets.USERS_DB_USER }}
+          USERS_DB_PASSWORD=${{ secrets.USERS_DB_PASSWORD }}
+          USERS_DB_PORT=${{ secrets.USERS_DB_PORT }}
+          TICKETS_DB_NAME=${{ secrets.TICKETS_DB_NAME }}
+          TICKETS_DB_USER=${{ secrets.TICKETS_DB_USER }}
+          TICKETS_DB_PASSWORD=${{ secrets.TICKETS_DB_PASSWORD }}
+          TICKETS_DB_PORT=${{ secrets.TICKETS_DB_PORT }}
+          EOF
+
+          cat <<EOF > apps/auth-service/.env
+          PORT=3001
+          AUTH_DATABASE_URL=postgresql://${{ secrets.AUTH_DB_USER }}:${{ secrets.AUTH_DB_PASSWORD }}@auth-db:5432/${{ secrets.AUTH_DB_NAME }}
+          EOF
+
+          cat <<EOF > apps/users-service/.env
+          PORT=3002
+          USERS_DATABASE_URL=postgresql://${{ secrets.USERS_DB_USER }}:${{ secrets.USERS_DB_PASSWORD }}@users-db:5432/${{ secrets.USERS_DB_NAME }}
+          EOF
+
+          cat <<EOF > apps/tickets-service/.env
+          PORT=3003
+          TICKETS_DATABASE_URL=postgresql://${{ secrets.TICKETS_DB_USER }}:${{ secrets.TICKETS_DB_PASSWORD }}@tickets-db:5432/${{ secrets.TICKETS_DB_NAME }}
+          EOF
+
+      - name: Build and Test
+        run: |
+          cd docker
+          docker compose build
+          docker compose up -d
+          sleep 10
+          docker compose exec -T tickets-service npm run test
+          docker compose down
+
+          
+  build-and-push:
+    needs: tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and Push Tickets
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./apps/tickets-service/Dockerfile
+          push: true
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/tickets-service:latest
+
+      - name: Build and Push Users
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./apps/users-service/Dockerfile
+          push: true
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/users-service:latest
+
+      - name: Build and Push Auth
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./apps/auth-service/Dockerfile
+          push: true
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/auth-service:latest

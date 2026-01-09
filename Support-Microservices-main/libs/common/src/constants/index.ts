@@ -1,0 +1,5 @@
+export const SERVICES = {
+  AUTH: 'AUTH_SERVICE',
+  USERS: 'USERS_SERVICE',
+  TICKETS: 'TICKETS_SERVICE',
+};

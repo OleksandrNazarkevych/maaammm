@@ -1,0 +1,100 @@
+# --- AUTH SERVICE ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: auth-service
+  template:
+    metadata:
+      labels:
+        app: auth-service
+    spec:
+      containers:
+      - name: auth-service
+        image: docker-auth-service:latest
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: AUTH_DATABASE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: AUTH_DATABASE_URL
+        - name: PORT
+          value: "3001"
+        command: ["sh", "-c"]
+        args: ["npx prisma generate --schema=apps/auth-service/prisma/schema.prisma && npx prisma db push --schema=apps/auth-service/prisma/schema.prisma && node dist/apps/auth-service/main.js"]
+
+        ports:
+        - containerPort: 3001
+
+---
+
+# --- USERS SERVICE ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: users-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: users-service
+  template:
+    metadata:
+      labels:
+        app: users-service
+    spec:
+      containers:
+      - name: users-service
+        image: docker-users-service:latest
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: USERS_DATABASE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: USERS_DATABASE_URL
+        - name: PORT
+          value: "3002"
+        command: ["sh", "-c"]
+        args: ["npx prisma generate --schema=apps/users-service/prisma/schema.prisma && npx prisma db push --schema=apps/users-service/prisma/schema.prisma && node dist/apps/users-service/main.js"]
+        ports:
+        - containerPort: 3002
+
+---
+
+# --- TICKETS SERVICE ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tickets-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: tickets-service
+  template:
+    metadata:
+      labels:
+        app: tickets-service
+    spec:
+      containers:
+      - name: tickets-service
+        image: docker-tickets-service:latest
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: TICKETS_DATABASE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: TICKETS_DATABASE_URL
+        - name: PORT
+          value: "3003"
+        command: ["sh", "-c"]
+        args: ["npx prisma generate --schema=apps/tickets-service/prisma/schema.prisma && npx prisma db push --schema=apps/tickets-service/prisma/schema.prisma && node dist/apps/tickets-service/main.js"]
+        ports:
+        - containerPort: 3003

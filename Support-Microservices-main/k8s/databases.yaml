@@ -1,0 +1,133 @@
+# --- AUTH DATABASE ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth-db
+spec:
+  selector:
+    matchLabels:
+      app: auth-db
+  template:
+    metadata:
+      labels:
+        app: auth-db
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:16
+        env:
+        - name: POSTGRES_DB
+          value: "auth_db"
+        - name: POSTGRES_USER
+          value: "auth"
+        - name: POSTGRES_PASSWORD
+          value: "auth"
+        ports:
+        - containerPort: 5432
+        livenessProbe:
+          exec:
+            command: ["pg_isready", "-U", "auth"]
+          initialDelaySeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: auth-db-service
+spec:
+  selector:
+    app: auth-db
+  ports:
+    - port: 5432
+      targetPort: 5432
+      nodePort: 30433 # Зовнішній доступ як ваші дані (5433)
+  type: NodePort
+
+---
+# --- USERS DATABASE ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: users-db
+spec:
+  selector:
+    matchLabels:
+      app: users-db
+  template:
+    metadata:
+      labels:
+        app: users-db
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:16
+        env:
+        - name: POSTGRES_DB
+          value: "users_db"
+        - name: POSTGRES_USER
+          value: "users"
+        - name: POSTGRES_PASSWORD
+          value: "users"
+        ports:
+        - containerPort: 5432
+        livenessProbe:
+          exec:
+            command: ["pg_isready", "-U", "users"]
+          initialDelaySeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: users-db-service
+spec:
+  selector:
+    app: users-db
+  ports:
+    - port: 5432
+      targetPort: 5432
+      nodePort: 30434 # Зовнішній доступ (5434)
+  type: NodePort
+
+---
+# --- TICKETS DATABASE ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tickets-db
+spec:
+  selector:
+    matchLabels:
+      app: tickets-db
+  template:
+    metadata:
+      labels:
+        app: tickets-db
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:16
+        env:
+        - name: POSTGRES_DB
+          value: "tickets_db"
+        - name: POSTGRES_USER
+          value: "tickets"
+        - name: POSTGRES_PASSWORD
+          value: "tickets"
+        ports:
+        - containerPort: 5432
+        livenessProbe:
+          exec:
+            command: ["pg_isready", "-U", "tickets"]
+          initialDelaySeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tickets-db-service
+spec:
+  selector:
+    app: tickets-db
+  ports:
+    - port: 5432
+      targetPort: 5432
+      nodePort: 30435 # Зовнішній доступ (5435)
+  type: NodePort
